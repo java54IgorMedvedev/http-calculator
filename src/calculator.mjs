@@ -16,23 +16,42 @@ const view = new CalculatorView();
 server.on("request", (req, res) => {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
 
-  const urlTokens = req.url.split("/");
+  const error = validateRequest(req.url);
+  if (error) {
+    res.end(view.getHtml(error, true));
+    return;
+  }
+
+  const [operation, operands] = parseRequest(req.url);
+  server.emit(operation, operands, res);
+});
+
+function validateRequest(url) {
+  const urlTokens = url.split("/");
   const operation = urlTokens[1];
-  let html;
 
   if (!operations.has(operation)) {
-    html = view.getHtml(`Method "${operation}" is not supported`, true);
-    res.end(html);
-  } else {
-    const operands = getOperands(urlTokens);
-    if (!operands) {
-      html = view.getHtml("Invalid operands", true);
-      res.end(html);
-    } else {
-      server.emit(operation, operands, res);
-    }
+    return `Method "${operation}" is not supported`;
   }
-});
+
+  const operands = getOperands(urlTokens);
+  if (!operands) {
+    return "Invalid operands";
+  }
+
+  if (operation === "divide" && operands[1] === 0) {
+    return "Division by zero is not allowed";
+  }
+
+  return "";
+}
+
+function parseRequest(url) {
+  const urlTokens = url.split("/");
+  const operation = urlTokens[1];
+  const operands = getOperands(urlTokens);
+  return [operation, operands];
+}
 
 function getOperands(urlTokens) {
   const op1 = parseFloat(urlTokens[2]);
